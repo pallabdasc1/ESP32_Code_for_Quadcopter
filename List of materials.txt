@@ -7,5 +7,6 @@ List of materials Required for the development and quantity
 6.Fly Sky FS-i6 6-Channel 2.4 Ghz Transmitter-1
 7.FS-iA6 Receiver-1
 8.Wires /connectors
-9.ESP32 WROON DEVKIT\
-You can buy all these from www.Robocraze.com India
+9.ESP32 WROON DEVKIT (Microcontroller)
+10.MPU6050(Gyro/Accelerometer)
+You can buy all these from www.Robocraze.com India or any other source
