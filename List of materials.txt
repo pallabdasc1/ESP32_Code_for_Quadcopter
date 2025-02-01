@@ -1,0 +1,11 @@
+List of materials Required for the development and quantity
+1.Quadcopter frame - 1
+2.30 A ESC - 4
+3:A2212/10T-1400KV Brushless Motors -4
+4.10 inch Propellers - 4
+5.2200mah 3s 11.1V Lipo battery-1
+6.Fly Sky FS-i6 6-Channel 2.4 Ghz Transmitter-1
+7.FS-iA6 Receiver-1
+8.Wires /connectors
+9.ESP32 WROON DEVKIT\
+You can buy all these from www.Robocraze.com India
