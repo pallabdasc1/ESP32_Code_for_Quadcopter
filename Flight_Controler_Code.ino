@@ -2,15 +2,15 @@
 #include <Arduino.h>
 #include <PPMReader.h>
 
-//analog read to read voltages using esp32
+//analog read to read voltages using esp32, I am trying to read battery voltages
 const int analogPin = 25; // Use the desired ADC pin
 float referenceVoltage = 3.3; // Reference voltage in volts (may need calibration)
 float r1Value = 77600.0; // Resistance of R1 in ohms
 float r2Value = 29400.0; // Resistance of R2 in ohms
 float battery_voltage=10;
 
-//PWM signal generator pins
-const int PWM_PIN_M1 = 5 ; //gpios m1
+//PWM signal generator pins and These no.s are GPIOs
+const int PWM_PIN_M1 = 5 ; //m1 
 const int PWM_PIN_M2 = 18; //m2
 const int PWM_PIN_M3 = 19 ;//m3
 const int PWM_PIN_M4 = 15 ;//m4
@@ -24,7 +24,7 @@ const int PWM_RESOLUTION = 12;  // 12-bit resolution (0-4095)
 byte interruptPin = 4;
 byte channelAmount = 6;
 PPMReader ppm(interruptPin, channelAmount);
-int ppmData[6]={0,0,0,0,0,0};
+int ppmData[6]={0,0,0,0,0,0}; //Initializing the values
 
 //PPM timeout
 const unsigned long ppmTimeout = 100000; // 100 milliseconds in microseconds
@@ -94,10 +94,10 @@ void ppmloop()
     bool validSignal = false;
     for (byte channel = 1; channel <= channelAmount; ++channel) 
     {
-    //    ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
-    //    Serial.print(ppmData[channel - 1]);
-    //    //if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
-    //} 
+    //  ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
+    //  Serial.print(ppmData[channel - 1]);
+    //  if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
+     
         int value = ppm.latestValidChannelValue(channel, -1);
         if (value != -1) 
         {
