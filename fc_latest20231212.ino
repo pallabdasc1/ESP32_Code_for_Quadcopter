@@ -7,7 +7,7 @@ const int analogPin = 25; // Use the desired ADC pin
 float referenceVoltage = 3.3; // Reference voltage in volts (may need calibration)
 float r1Value = 77600.0; // Resistance of R1 in ohms
 float r2Value = 29400.0; // Resistance of R2 in ohms
-float battery_voltage=12;
+float battery_voltage=10;
 
 //PWM signal generator pins
 const int PWM_PIN_M1 = 5 ; //gpios m1
@@ -20,15 +20,16 @@ const int PWM_RESOLUTION = 12;  // 12-bit resolution (0-4095)
 
 
 //PPM signal receiver
-//Initialize a PPMReader on digital pin 3 with 6 expected channels.
+//Initialize a PPMReader on digital pin 4 with 6 expected channels.
 byte interruptPin = 4;
 byte channelAmount = 6;
 PPMReader ppm(interruptPin, channelAmount);
 int ppmData[6]={0,0,0,0,0,0};
 
 //PPM timeout
-//unsigned long lastPPMUpdateTime;
-//const unsigned long ppmTimeout = 500000L;
+const unsigned long ppmTimeout = 100000; // 100 milliseconds in microseconds
+bool ppmSignalLost = false;
+unsigned long lastPPMUpdateTime = 0;
 
 
 //Code for flight controller
@@ -48,9 +49,9 @@ float PrevItermRateRoll, PrevItermRatePitch, PrevItermRateYaw;
 float PIDReturn[]={0, 0, 0};
 
 //PID Rate
-float PRateRoll=0.6; float PRatePitch=PRateRoll; float PRateYaw=2;
-float IRateRoll=3.5; float IRatePitch=IRateRoll; float IRateYaw=12;
-float DRateRoll=0.03; float DRatePitch=DRateRoll; float DRateYaw=0;
+float PRateRoll=0.7; float PRatePitch=PRateRoll; float PRateYaw=2;
+float IRateRoll=0.0; float IRatePitch=IRateRoll; float IRateYaw=12;
+float DRateRoll=0.01; float DRatePitch=DRateRoll; float DRateYaw=0;
 
 float MotorInput1=0, MotorInput2=0, MotorInput3=0, MotorInput4=0;
 
@@ -71,6 +72,7 @@ float PAngleRoll=1.5; float PAnglePitch=PAngleRoll;//1
 float IAngleRoll=0; float IAnglePitch=IAngleRoll;
 float DAngleRoll=0.6; float DAnglePitch=DAngleRoll;//0.5
 
+
 void kalman_1d(float KalmanState,float KalmanUncertainty, float KalmanInput, float KalmanMeasurement) 
 {
    KalmanState=KalmanState+0.004*KalmanInput;
@@ -82,16 +84,46 @@ void kalman_1d(float KalmanState,float KalmanUncertainty, float KalmanInput, flo
    Kalman1DOutput[1]=KalmanUncertainty;
 }
 
+void reset_motors()
+{
+   MotorInput1=1000, MotorInput2=1000, MotorInput3=1000, MotorInput4=1000;  
+}
 
 void ppmloop() 
 {   
+    bool validSignal = false;
     for (byte channel = 1; channel <= channelAmount; ++channel) 
     {
-        ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
+    //    ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
+    //    Serial.print(ppmData[channel - 1]);
+    //    //if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
+    //} 
+        int value = ppm.latestValidChannelValue(channel, -1);
+        if (value != -1) 
+        {
+            ppmData[channel - 1] = value;
+            validSignal = true;
+        }
         Serial.print(ppmData[channel - 1]);
-        if(channel < channelAmount) Serial.print('\t');
     }
-    Serial.println();
+    if (validSignal) 
+    {
+        lastPPMUpdateTime = micros();
+        ppmSignalLost = false;
+    }
+    else 
+    {
+        if ((micros() - lastPPMUpdateTime) > ppmTimeout) 
+        {
+            ppmSignalLost = true;
+        }
+    }
+    if (ppmSignalLost) 
+    {
+        ppmData[2] = 0; // Throttle to idle value
+        reset_pid();       // Reset PID to avoid sudden movements
+        reset_motors();
+    }
 }
 
 void pwmsetup() 
@@ -136,6 +168,7 @@ float batteryvoltage()
   //Serial.print(inputVoltage, 3); // Print voltage with 3 decimal places
   //Serial.println(" V");
   //delay(1); // Wait for a second before taking the next reading
+  return inputVoltage;
 }
 
 
@@ -210,47 +243,33 @@ void gyro_signals(void) {
 }
 
 
-
-void setup()  
+void batteryMonitorTask(void *pvParameters)
 {
-    Serial.begin(115200); 
-    pinMode(2, OUTPUT); //lights the led
-    analogReadResolution(12); // Set ADC resolution to 12 bits (0-4095)  
-    pinMode(analogPin, INPUT);
-    Wire.setClock(400000);
-    Wire.begin();
-    delay(250);
-    Wire.beginTransmission(0x68);
-    Wire.write(0x6B);
-    Wire.write(0x00);
-    Wire.endTransmission();
-    for(RateCalibrationNumber=0; RateCalibrationNumber<2000; RateCalibrationNumber++)  //gyroscope calibration
-    {
-        gyro_signals();
-        RateCalibrationRoll+=RateRoll;
-        RateCalibrationPitch+=RatePitch;
-        RateCalibrationYaw+=RateYaw;
-        delay(1);
-    }
-    RateCalibrationRoll/=2000; 
-    RateCalibrationPitch/=2000;
-    RateCalibrationYaw/=2000;
-    pwmsetup();
-    LoopTimer=micros();
+   while(1)
+   {
+      Serial.print("\nBATTERY MONITOR TASK\n"); 
+      battery_voltage = batteryvoltage();
+      if (battery_voltage < 9) 
+      {   // Check if voltage is below 9V
+         Serial.println("Battery level low please Recharge the Battery");
+         digitalWrite(2, HIGH); // Turn on the LED
+         delay(500); 
+         digitalWrite(2, LOW); // Turn off the LED
+         delay(500);
+      } 
+      else 
+      {
+         digitalWrite(2, HIGH); // Ensure the LED is off if voltage is above 9V
+      }
+      //vTaskDelay(1000 / portTICK_PERIOD_MS);
+   }
 }
-
-void loop() 
+void flightControlTask(void *pvParameters)
 {
-   /* if(battery_voltage <= 11)
+    while(1)
     {
-        digitalWrite(2, HIGH); //light the led
-        delay(200);
-        digitalWrite(2, LOW);
-    }
-    else
-    {*/
-    digitalWrite(2, HIGH);
-    gyro_signals();
+    //battery_monitor(); //manage battery
+    gyro_signals(); //connect to gyro
     
     RateRoll-=RateCalibrationRoll;
     RatePitch-=RateCalibrationPitch;
@@ -310,43 +329,42 @@ void loop()
     PrevErrorRateYaw=PIDReturn[1];
     PrevItermRateYaw=PIDReturn[2];
 
-   if (InputThrottle > 1800) InputThrottle = 1800;
+    if (InputThrottle > 1800) InputThrottle = 1800;
    
-   //input throtle value multiplied with 1.024
-   MotorInput1= 1.024*(InputThrottle-InputRoll-InputPitch-InputYaw); //m1
-   MotorInput2= 1.024*(InputThrottle-InputRoll+InputPitch+InputYaw); //m2
-   MotorInput3= 1.024*(InputThrottle+InputRoll+InputPitch-InputYaw); //m3
-   MotorInput4= 1.024*(InputThrottle+InputRoll-InputPitch+InputYaw); //m4
+    //input throtle value multiplied with 1.024
+    MotorInput1= 1.024*(InputThrottle-InputRoll-InputPitch-InputYaw); //m1
+    MotorInput2= 1.024*(InputThrottle-InputRoll+InputPitch+InputYaw); //m2
+    MotorInput3= 1.024*(InputThrottle+InputRoll+InputPitch-InputYaw); //m3
+    MotorInput4= 1.024*(InputThrottle+InputRoll-InputPitch+InputYaw); //m4
 
-   if (MotorInput1 > 2000) MotorInput1 = 1989;
-   if (MotorInput2 > 2000) MotorInput2 = 1989;
-   if (MotorInput3 > 2000) MotorInput3 = 1989;
-   if (MotorInput4 > 2000) MotorInput4 = 1989;
+    if (MotorInput1 > 2000) MotorInput1 = 1989;
+    if (MotorInput2 > 2000) MotorInput2 = 1989;
+    if (MotorInput3 > 2000) MotorInput3 = 1989;
+    if (MotorInput4 > 2000) MotorInput4 = 1989;
 
 
-   int ThrottleIdle=1180;
-   if (MotorInput1 < ThrottleIdle) MotorInput1 = ThrottleIdle;
-   if (MotorInput2 < ThrottleIdle) MotorInput2 = ThrottleIdle;
-   if (MotorInput3 < ThrottleIdle) MotorInput3 = ThrottleIdle;
-   if (MotorInput4 < ThrottleIdle) MotorInput4 = ThrottleIdle;
+    int ThrottleIdle=1180;
+    if (MotorInput1 < ThrottleIdle) MotorInput1 = ThrottleIdle;
+    if (MotorInput2 < ThrottleIdle) MotorInput2 = ThrottleIdle;
+    if (MotorInput3 < ThrottleIdle) MotorInput3 = ThrottleIdle;
+    if (MotorInput4 < ThrottleIdle) MotorInput4 = ThrottleIdle;
 
-   int ThrottleCutOff=1000;
-   if (ppmData[2]<1050) 
-   { 
-      MotorInput1=ThrottleCutOff;
-      MotorInput2=ThrottleCutOff;
-      MotorInput3=ThrottleCutOff;
-      MotorInput4=ThrottleCutOff;
+    int ThrottleCutOff=1000;
+    if (ppmData[2]<1050) 
+    { 
+       MotorInput1=ThrottleCutOff;
+       MotorInput2=ThrottleCutOff;
+       MotorInput3=ThrottleCutOff;
+       MotorInput4=ThrottleCutOff;
       reset_pid();
-   }
-   
-   /*
-    Serial.print("  error Roll Angle [°] ");
-    Serial.print( ErrorAngleRoll);
-    Serial.print("  error Pitch Angle [°] ");
-    Serial.println( ErrorAnglePitch);
-   */
-    
+    }
+     /*
+     Serial.print("  error Roll Angle [°] ");
+     Serial.print( ErrorAngleRoll);
+     Serial.print("  error Pitch Angle [°] ");
+     Serial.println( ErrorAnglePitch);
+     */
+    Serial.print("\nFLIGHT CONTROL TASK\n");
     Serial.print("\n  Motor 1 out ");
     Serial.println( MotorInput1);
     Serial.print("\n  Motor 2 out ");
@@ -355,9 +373,7 @@ void loop()
     Serial.println( MotorInput3);
     Serial.print("\n  Motor 4 out ");
     Serial.println( MotorInput4);
-   
-  
-    battery_voltage =batteryvoltage();
+    
     /*These lines are used to send pwm signals to the escs connected to the microcontroller esp32*/
     pwmloop(MotorInput1,0);  //gpio5 output to esc m1 --anti clkwise
     pwmloop(MotorInput2,1);  //gpio18 m2 -- clkwise
@@ -366,6 +382,49 @@ void loop()
     
     while ((micros() - LoopTimer) < 4000);
     LoopTimer=micros();
+    }
+}
+
+void gyroscope_calibration()
+{
+    for(RateCalibrationNumber=0; RateCalibrationNumber<2000; RateCalibrationNumber++)  //gyroscope calibration
+    {
+        gyro_signals();
+        RateCalibrationRoll+=RateRoll;
+        RateCalibrationPitch+=RatePitch;
+        RateCalibrationYaw+=RateYaw;
+        delay(1);
+    }
+    RateCalibrationRoll/=2000; 
+    RateCalibrationPitch/=2000;
+    RateCalibrationYaw/=2000;
+}
+
+void setup()  
+{
+    Serial.begin(115200); 
+    pinMode(2, OUTPUT); //lights the led
+    analogReadResolution(12); // Set ADC resolution to 12 bits (0-4095)  
+    pinMode(analogPin, INPUT);
+    Wire.setClock(400000);
+    Wire.begin();
+    delay(250);
+    Wire.beginTransmission(0x68);
+    Wire.write(0x6B);
+    Wire.write(0x00);
+    Wire.endTransmission();
+    gyroscope_calibration();
+    pwmsetup();
+    LoopTimer=micros();
+    xTaskCreate(batteryMonitorTask, "Battery monitor Task", 1000, NULL, 1, NULL);
+    xTaskCreate(flightControlTask, "Flight Control Task", 4096, NULL, 1, NULL);
+    //xTaskCreate(displayDetailsTask, "Display Details Task", 2048, NULL, 1, NULL);
+    
+}
+
+void loop() 
+{   
+  //no task here
 }
     
     
