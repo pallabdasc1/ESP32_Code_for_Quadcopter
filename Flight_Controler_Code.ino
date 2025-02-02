@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <Arduino.h>
 #include <PPMReader.h>
+#include <esp_task_wdt.h>
 
 //analog read to read voltages using esp32, I am trying to read battery voltages
 const int analogPin = 25; // Use the desired ADC pin
@@ -356,7 +357,7 @@ void flightControlTask(void *pvParameters)
        MotorInput2=ThrottleCutOff;
        MotorInput3=ThrottleCutOff;
        MotorInput4=ThrottleCutOff;
-      reset_pid();
+       reset_pid();
     }
      /*
      Serial.print("  error Roll Angle [°] ");
@@ -416,7 +417,11 @@ void setup()
     gyroscope_calibration();
     pwmsetup();
     LoopTimer=micros();
-    xTaskCreate(batteryMonitorTask, "Battery monitor Task", 1000, NULL, 1, NULL);
+    
+    esp_task_wdt_init(5, true);  // 5-second watchdog timer
+    esp_task_wdt_add(NULL);      // Add loop task to watchdog
+   
+    xTaskCreate(batteryMonitorTask, "Battery monitor Task", 4096, NULL, 1, NULL);
     xTaskCreate(flightControlTask, "Flight Control Task", 8192, NULL, 1, NULL);
     //xTaskCreate(displayDetailsTask, "Display Details Task", 2048, NULL, 1, NULL);
     
@@ -424,7 +429,9 @@ void setup()
 
 void loop() 
 {   
-  //no task here
+    esp_task_wdt_reset(); 
+    Serial.println("Main loop running...");
+    delay(1000);  // Simulate main loop work
 }
     
     
