@@ -417,7 +417,7 @@ void setup()
     pwmsetup();
     LoopTimer=micros();
     xTaskCreate(batteryMonitorTask, "Battery monitor Task", 1000, NULL, 1, NULL);
-    xTaskCreate(flightControlTask, "Flight Control Task", 4096, NULL, 1, NULL);
+    xTaskCreate(flightControlTask, "Flight Control Task", 8192, NULL, 1, NULL);
     //xTaskCreate(displayDetailsTask, "Display Details Task", 2048, NULL, 1, NULL);
     
 }
