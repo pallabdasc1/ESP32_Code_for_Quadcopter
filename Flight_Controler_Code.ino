@@ -41,7 +41,6 @@ float AccX, AccY, AccZ;
 float AngleRoll, AnglePitch;
 float LoopTimer;
 
-
 float DesiredRateRoll, DesiredRatePitch,DesiredRateYaw;
 float ErrorRateRoll, ErrorRatePitch, ErrorRateYaw;
 float InputRoll, InputThrottle, InputPitch, InputYaw;
@@ -55,7 +54,6 @@ float IRateRoll=0.0; float IRatePitch=IRateRoll; float IRateYaw=12;
 float DRateRoll=0.01; float DRatePitch=DRateRoll; float DRateYaw=0;
 
 float MotorInput1=0, MotorInput2=0, MotorInput3=0, MotorInput4=0;
-
 
 float KalmanAngleRoll=0, KalmanUncertaintyAngleRoll=2*2;
 float KalmanAnglePitch=0, KalmanUncertaintyAnglePitch=2*2;
@@ -95,9 +93,9 @@ void ppmloop()
     bool validSignal = false;
     for (byte channel = 1; channel <= channelAmount; ++channel) 
     {
-    //  ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
-    //  Serial.print(ppmData[channel - 1]);
-    //  if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
+        //  ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
+        //  Serial.print(ppmData[channel - 1]);
+        //  if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
      
         int value = ppm.latestValidChannelValue(channel, -1);
         if (value != -1) 
@@ -171,8 +169,6 @@ float batteryvoltage()
   //delay(1); // Wait for a second before taking the next reading
   return inputVoltage;
 }
-
-
 
 void pid_equation(float Error, float P , float I, float D, float PrevError, float PrevIterm) 
 {
@@ -288,7 +284,7 @@ void flightControlTask(void *pvParameters)
     DesiredAngleRoll=0.10*(ppmData[0]-1500); // desired roll
     DesiredAnglePitch=0.10*(ppmData[1]-1500); // desired pitch
    
-   /*show angle*/
+    /*show angle for testing purpose*/
    
     Serial.print(" Roll Angle [°] ");
     Serial.print(KalmanAngleRoll);
