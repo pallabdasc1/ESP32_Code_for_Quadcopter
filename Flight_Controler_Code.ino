@@ -119,7 +119,12 @@ void ppmloop()
     }
     if (ppmSignalLost) 
     {
-        ppmData[2] = 0; // Throttle to idle value
+        Serial.println("PPM Signal Lost! Resetting Controls...");
+        // Set throttle and other channels to a safe value
+        ppmData[2] = 1000; // Set throttle to minimum (Idle)
+        ppmData[0] = 1500; // Centered Roll
+        ppmData[1] = 1500; // Centered Pitch
+        ppmData[3] = 1500; // Centered Yaw
         reset_pid();       // Reset PID to avoid sudden movements
         reset_motors();
     }
