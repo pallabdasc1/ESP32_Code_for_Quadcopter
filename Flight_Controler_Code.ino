@@ -199,7 +199,8 @@ void pid_equation(float Error, float P , float I, float D, float PrevError, floa
 }
 
 void reset_pid(void)
-{
+{  
+   //Author: Pallab das
    PrevErrorRateRoll=0; PrevErrorRatePitch=0; PrevErrorRateYaw=0;
    PrevItermRateRoll=0; PrevItermRatePitch=0; PrevItermRateYaw=0;
    
