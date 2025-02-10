@@ -28,10 +28,11 @@ PPMReader ppm(interruptPin, channelAmount);
 int ppmData[6]={0,0,0,0,0,0}; //Initializing the values
 
 //PPM timeout
-const unsigned long ppmTimeout = 100000; // 100 milliseconds in microseconds
-bool ppmSignalLost = false;
+const unsigned long ppmTimeout = 5000000; //timeout
 unsigned long lastPPMUpdateTime = 0;
-
+bool ppmSignalLost = true; // Assume signal is lost initially
+int lastPPMData[6] = {0}; // Store previous PPM values
+const int changeThreshold = 10; // Minimum change required to consider signal active
 
 //Code for flight controller
 float RateRoll, RatePitch, RateYaw;
@@ -88,15 +89,13 @@ void reset_motors()
    MotorInput1=1000, MotorInput2=1000, MotorInput3=1000, MotorInput4=1000;  
 }
 
+/*
 void ppmloop() 
 {   
     bool validSignal = false;
     for (byte channel = 1; channel <= channelAmount; ++channel) 
     {
-        //  ppmData[channel-1] = ppm.latestValidChannelValue(channel, 0);
-        //  Serial.print(ppmData[channel - 1]);
-        //  if(channel < channelAmount) Serial.print('\t'); //comented to savespeed
-     
+       
         int value = ppm.latestValidChannelValue(channel, -1);
         if (value != -1) 
         {
@@ -110,13 +109,21 @@ void ppmloop()
         lastPPMUpdateTime = micros();
         ppmSignalLost = false;
     }
-    else 
+    
+    // Check if the PPM signal has been stale for too long
+    unsigned long elapsedTime = micros() - lastPPMUpdateTime;
+    if (elapsedTime > ppmTimeout) 
     {
-        if ((micros() - lastPPMUpdateTime) > ppmTimeout) 
-        {
-            ppmSignalLost = true;
-        }
+        ppmSignalLost = true;
     }
+
+
+    // ✅ Print debug information
+    Serial.print("Elapsed Time: ");
+    Serial.print(elapsedTime);
+    Serial.print(" µs | PPM Signal Lost: ");
+    Serial.println(ppmSignalLost ? "true" : "false");
+    
     if (ppmSignalLost) 
     {
         Serial.println("PPM Signal Lost! Resetting Controls...");
@@ -129,6 +136,76 @@ void ppmloop()
         reset_motors();
     }
 }
+*/
+void ppmloop() 
+{   
+    bool valuesChanged = false;
+
+    for (byte channel = 0; channel < channelAmount; ++channel) 
+    {
+        int value = ppm.latestValidChannelValue(channel + 1, -1); // Channel numbers start from 1
+        
+        if (value != -1) 
+        {
+            ppmData[channel] = value;
+
+            // ✅ Check if values have changed significantly (threshold-based)
+            if (abs(ppmData[channel] - lastPPMData[channel]) > changeThreshold) 
+            {
+                valuesChanged = true;
+            }
+        }
+        Serial.print(ppmData[channel]);
+        Serial.print("\t"); // Tab for spacing
+    }
+
+    Serial.print(" | "); // Separator for readability
+
+    unsigned long currentTime = micros();
+    unsigned long elapsedTime = currentTime - lastPPMUpdateTime;
+
+    // ✅ If values change significantly, update lastPPMUpdateTime and reset signal lost flag
+    if (valuesChanged) 
+    {
+        lastPPMUpdateTime = currentTime;
+        ppmSignalLost = false; // Signal is present
+    }
+    // ✅ If values have NOT changed for 15 seconds, consider signal lost
+    else if (elapsedTime > ppmTimeout) 
+    {
+        ppmSignalLost = true;
+    }
+
+    // ✅ Print debug information
+    Serial.print("Elapsed Time: ");
+    Serial.print(elapsedTime / 1000000.0); // Convert to seconds for readability
+    Serial.print(" s | PPM Signal Lost: ");
+    Serial.println(ppmSignalLost ? "true" : "false");
+
+    // ✅ Save current values for the next loop
+    for (byte channel = 0; channel < channelAmount; ++channel) 
+    {
+        lastPPMData[channel] = ppmData[channel];
+    }
+
+    // ✅ Handle PPM signal loss
+    if (ppmSignalLost) 
+    {
+        Serial.println("PPM Signal Lost! Resetting Controls...");
+        
+        // Set throttle and other channels to a safe value
+        ppmData[2] = 1000; // Set throttle to minimum (Idle)
+        ppmData[0] = 1500; // Centered Roll
+        ppmData[1] = 1500; // Centered Pitch
+        ppmData[3] = 1500; // Centered Yaw
+
+        reset_pid();       // Reset PID to avoid sudden movements
+        reset_motors();
+    }
+
+    delay(500); // Small delay to avoid excessive CPU usage
+}
+
 
 void pwmsetup() 
 {
@@ -291,12 +368,12 @@ void flightControlTask(void *pvParameters)
     DesiredAnglePitch=0.10*(ppmData[1]-1500); // desired pitch
    
     /*show angle for testing purpose*/
-   
+    
     Serial.print(" Roll Angle [°] ");
     Serial.print(KalmanAngleRoll);
     Serial.print(" Pitch Angle [°] ");
     Serial.println(KalmanAnglePitch);
-   
+    
     InputThrottle=ppmData[2];   //desired throttle
     DesiredRateYaw=0.15*(ppmData[3]-1500); //yaw
 
@@ -367,6 +444,7 @@ void flightControlTask(void *pvParameters)
      Serial.print("  error Pitch Angle [°] ");
      Serial.println( ErrorAnglePitch);
      */
+    /*
     Serial.print("\nFLIGHT CONTROL TASK\n");
     Serial.print("\n  Motor 1 out ");
     Serial.println( MotorInput1);
@@ -376,7 +454,7 @@ void flightControlTask(void *pvParameters)
     Serial.println( MotorInput3);
     Serial.print("\n  Motor 4 out ");
     Serial.println( MotorInput4);
-    
+    */
     /*These lines are used to send pwm signals to the escs connected to the microcontroller esp32*/
     pwmloop(MotorInput1,0);  //gpio5 output to esc m1 --anti clkwise
     pwmloop(MotorInput2,1);  //gpio18 m2 -- clkwise
@@ -420,8 +498,8 @@ void setup()
     pwmsetup();
     LoopTimer=micros();
     
-    esp_task_wdt_init(5, true);  // 5-second watchdog timer
-    esp_task_wdt_add(NULL);      // Add loop task to watchdog
+    //esp_task_wdt_init(5, true);  // 5-second watchdog timer
+    //esp_task_wdt_add(NULL);      // Add loop task to watchdog
    
     xTaskCreate(batteryMonitorTask, "Battery monitor Task", 4096, NULL, 1, NULL);
     xTaskCreate(flightControlTask, "Flight Control Task", 8192, NULL, 1, NULL);
@@ -431,9 +509,9 @@ void setup()
 
 void loop() 
 {   
-    esp_task_wdt_reset(); 
-    Serial.println("Main loop running...");
-    delay(1000);  // Simulate main loop work
+    //esp_task_wdt_reset(); 
+    //Serial.println("Main loop running...");
+    //delay(1000);  // Simulate main loop work
 }
     
     
