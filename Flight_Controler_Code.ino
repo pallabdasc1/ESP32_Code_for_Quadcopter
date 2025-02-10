@@ -28,7 +28,7 @@ PPMReader ppm(interruptPin, channelAmount);
 int ppmData[6]={0,0,0,0,0,0}; //Initializing the values
 
 //PPM timeout
-const unsigned long ppmTimeout = 5000000; //timeout
+const unsigned long ppmTimeout = 10000000; //timeout
 unsigned long lastPPMUpdateTime = 0;
 bool ppmSignalLost = true; // Assume signal is lost initially
 int lastPPMData[6] = {0}; // Store previous PPM values
