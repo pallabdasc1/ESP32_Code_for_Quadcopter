@@ -256,30 +256,6 @@ void pwmloop(int motor_input,int PWM_PIN)
    ledcWrite(PWM_PIN, motor_input);
 }
 
-/*wifi server stuff starts*/
-void handleRoot() 
-{
-    server.send(200, "text/html", index_html);
-}
-
-void handleSetValues() 
-{
-    if (server.hasArg("Prate")) PRate = server.arg("Prate").toFloat();
-    if (server.hasArg("Irate")) IRate = server.arg("Irate").toFloat();
-    if (server.hasArg("Drate")) DRate = server.arg("Drate").toFloat();
-    if (server.hasArg("Pangle")) PAngle = server.arg("Pangle").toFloat();
-    if (server.hasArg("Iangle")) IAngle = server.arg("Iangle").toFloat();
-    if (server.hasArg("Dangle")) DAngle = server.arg("Dangle").toFloat();
-
-    // Print received values to Serial Monitor
-    Serial.println("Received Values:");
-    Serial.println("PRate: " + String(PRate) + "  IRate: " + String(IRate) + "  DRate: " + String(DRate));
-    Serial.println("PAngle: " + String(PAngle) + "  IAngle: " + String(IAngle) + "  DAngle: " + String(DAngle));
-
-    server.send(200, "text/plain", "Values received!");
-}
-/*wifi server stuff ends here*/
-
 float batteryvoltage() 
 {
   int rawValue = analogRead(analogPin);
